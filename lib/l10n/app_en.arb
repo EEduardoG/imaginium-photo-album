@@ -1,0 +1,56 @@
+{
+  "galleryTitle": "Gallery",
+  "@galleryTitle": {
+    "description": "Title of the main gallery screen"
+  },
+  "searchHint": "Search photos...",
+  "@searchHint": {
+    "description": "Placeholder text in search bar"
+  },
+  "noPhotosYet": "No photos yet",
+  "@noPhotosYet": {
+    "description": "Empty state message when gallery has no photos"
+  },
+  "scanFolder": "Scan folder",
+  "@scanFolder": {
+    "description": "Button label to scan a folder for new photos"
+  },
+  "filterAll": "All",
+  "filterPhotos": "Photos",
+  "filterVideos": "Videos",
+  "settingsTitle": "Settings",
+  "settingsSecurity": "Security",
+  "settingsAi": "AI",
+  "settingsProton": "Proton Drive",
+  "settingsGallery": "Gallery",
+  "settingsStorage": "Storage",
+  "settingsAbout": "About",
+  "biometricLock": "Biometric Lock",
+  "sqlcipherEncryption": "SQLCipher Encryption",
+  "privateVault": "Private Vault",
+  "decoyMode": "Decoy Mode",
+  "gpsStripping": "GPS Stripping",
+  "newVersionAvailable": "New version available",
+  "download": "Download",
+  "ignore": "Ignore",
+  "cancel": "Cancel",
+  "delete": "Delete",
+  "restore": "Restore",
+  "save": "Save",
+  "retry": "Retry",
+  "errorOllamaNotResponding": "Ollama is not responding",
+  "errorProtonCliNotFound": "Proton Drive CLI not detected",
+  "reportError": "Report error",
+  "sendReport": "Send report",
+  "trash": "Trash",
+  "emptyTrash": "Empty trash",
+  "restoreAll": "Restore all",
+  "sharePhoto": "Share photo",
+  "shareWithTags": "Share with tags",
+  "shareWithExif": "Share with tags in metadata",
+  "createAlbum": "Create album",
+  "addToAlbum": "Add to album",
+  "moveToVault": "Move to vault",
+  "searchByTags": "Search by tags",
+  "searchByDate": "Search by date"
+}

@@ -1,0 +1,78 @@
+name: imaginium_photo_album
+description: Photo and video organizer with local AI categorization, Proton Drive sync, and privacy-first design.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Database
+  drift: ^2.15.0
+  sqlite3_flutter_libs: ^0.5.0
+  path_provider: ^2.1.0
+  path: ^1.8.0
+
+  # AI / ML
+  tflite_flutter: ^0.11.0
+  image: ^4.1.0
+
+  # File system & Photos
+  photo_manager: ^3.0.0
+  file_picker: ^8.0.0
+  watcher: ^1.1.0
+
+  # Networking
+  http: ^1.2.0
+
+  # Process execution
+  process_run: ^1.1.0
+
+  # State management
+  flutter_riverpod: ^2.4.0
+
+  # Video
+  video_player: ^2.8.0
+  chewie: ^1.7.0
+
+  # Sharing
+  share_plus: ^9.0.0
+
+  # Utilities
+  crypto: ^3.0.0
+  uuid: ^4.2.0
+  intl: ^0.19.0
+  json_annotation: ^4.8.0
+  exif: ^3.3.0
+  flutter_image_compress: ^2.1.0
+  mime: ^1.0.0
+  freezed_annotation: ^2.4.0
+
+  # Security (opt-in, loaded on demand)
+  local_auth: ^2.2.0
+  flutter_secure_storage: ^9.0.0
+
+  # Localization
+  flutter_localizations:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  drift_dev: ^2.15.0
+  build_runner: ^2.4.0
+  json_serializable: ^6.7.0
+  freezed: ^2.4.0
+  flutter_lints: ^3.0.0
+  mocktail: ^1.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/models/
+
+  generate: true

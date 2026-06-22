@@ -1,0 +1,56 @@
+{
+  "galleryTitle": "Galería",
+  "@galleryTitle": {
+    "description": "Title of the main gallery screen"
+  },
+  "searchHint": "Buscar fotos...",
+  "@searchHint": {
+    "description": "Placeholder text in search bar"
+  },
+  "noPhotosYet": "No hay fotos aún",
+  "@noPhotosYet": {
+    "description": "Empty state message when gallery has no photos"
+  },
+  "scanFolder": "Escanear carpeta",
+  "@scanFolder": {
+    "description": "Button label to scan a folder for new photos"
+  },
+  "filterAll": "Todo",
+  "filterPhotos": "Fotos",
+  "filterVideos": "Videos",
+  "settingsTitle": "Configuración",
+  "settingsSecurity": "Seguridad",
+  "settingsAi": "IA",
+  "settingsProton": "Proton Drive",
+  "settingsGallery": "Galería",
+  "settingsStorage": "Almacenamiento",
+  "settingsAbout": "Acerca de",
+  "biometricLock": "Bloqueo biométrico",
+  "sqlcipherEncryption": "Cifrado SQLCipher",
+  "privateVault": "Bóveda privada",
+  "decoyMode": "Modo señuelo",
+  "gpsStripping": "Eliminar GPS",
+  "newVersionAvailable": "Nueva versión disponible",
+  "download": "Descargar",
+  "ignore": "Ignorar",
+  "cancel": "Cancelar",
+  "delete": "Eliminar",
+  "restore": "Restaurar",
+  "save": "Guardar",
+  "retry": "Reintentar",
+  "errorOllamaNotResponding": "Ollama no está respondiendo",
+  "errorProtonCliNotFound": "Proton Drive CLI no detectado",
+  "reportError": "Reportar error",
+  "sendReport": "Enviar reporte",
+  "trash": "Papelera",
+  "emptyTrash": "Vaciar papelera",
+  "restoreAll": "Restaurar todo",
+  "sharePhoto": "Compartir foto",
+  "shareWithTags": "Compartir con tags",
+  "shareWithExif": "Compartir con tags en metadata",
+  "createAlbum": "Crear álbum",
+  "addToAlbum": "Agregar a álbum",
+  "moveToVault": "Mover a bóveda",
+  "searchByTags": "Buscar por tags",
+  "searchByDate": "Buscar por fecha"
+}

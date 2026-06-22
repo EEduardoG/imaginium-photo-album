@@ -1,0 +1,124 @@
+# =============================================================================
+# Imaginium Photo Album — .gitignore
+# =============================================================================
+
+# -- OS & Editor ---------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+*~
+\#*\#
+.#*
+
+# -- IDE -----------------------------------------------------------------------
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.history/
+*.sublime-workspace
+*.sublime-project
+
+# -- Dart / Flutter ------------------------------------------------------------
+.dart_tool/
+.packages
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+pubspec.lock
+
+# Generated localization files (regenerated with flutter gen-l10n)
+.dart_tool/flutter_gen/
+lib/l10n/app_localizations*.dart
+
+# Drift code generation output (old files after refactor)
+**/*.mocks.dart
+*.g.dart.save
+
+# -- Symbolication & Obfuscation ------------------------------------------------
+app.*.symbols
+app.*.map.json
+
+# -- Platform-Specific Build Artifacts ------------------------------------------
+/android/app/debug
+/android/app/profile
+/android/app/release
+/android/.gradle/
+/android/local.properties
+/android/key.properties
+/android/*.jks
+/android/*.keystore
+/ios/Pods/
+/ios/.symlinks/
+/ios/Flutter/.last_build_id
+/ios/Flutter/App.framework
+/ios/Flutter/Flutter.framework
+/ios/Flutter/Generated.xcconfig
+/ios/Flutter/ephemeral/
+/linux/flutter/ephemeral/
+/linux/flutter/generated_plugin_registrant.cc
+/linux/flutter/generated_plugin_registrant.h
+/linux/flutter/generated_plugins.cmake
+/macos/Flutter/ephemeral/
+/windows/flutter/ephemeral/
+
+# -- Web -----------------------------------------------------------------------
+/web/build/
+
+# -- Package / Module -----------------------------------------------------------
+pubspec.lock
+.metadata
+*.iml
+
+# -- Environment & Secrets ------------------------------------------------------
+.env
+.env.*
+*.env
+secrets/
+*.pem
+*.key
+credentials.json
+service-account.json
+
+# -- AI Models (large files, downloaded separately) -----------------------------
+assets/models/*.tflite
+!assets/models/.gitkeep
+
+# -- Database & User Data -------------------------------------------------------
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+
+# -- Test Coverage & Reports ----------------------------------------------------
+coverage/
+*.lcov
+test/reports/
+
+# -- Temporary Files ------------------------------------------------------------
+*.tmp
+*.temp
+*.bak
+*.cache
+*.log
+
+# -- Snapcraft ------------------------------------------------------------------
+*.snap
+parts/
+stage/
+prime/
+
+# -- Documentation Build --------------------------------------------------------
+doc/api/
+plan.md

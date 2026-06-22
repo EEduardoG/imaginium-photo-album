@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/database/database.dart';
 import '../../../data/repositories/photo_repository.dart';
+import '../../../services/directory_watcher_service.dart';
+import '../../../services/photo_import_pipeline.dart';
 
 /// Filter mode for the gallery grid.
 enum GalleryFilter { all, photos, videos }
@@ -17,6 +20,10 @@ class GalleryState {
     this.grouping = GalleryGrouping.year,
     this.isLoading = false,
     this.isScanning = false,
+    this.isWatching = false,
+    this.isImporting = false,
+    this.importingFilename,
+    this.importStatusMessage,
     this.error,
     this.selectedPhotos = const {},
     this.totalCount = 0,
@@ -27,6 +34,10 @@ class GalleryState {
   final GalleryGrouping grouping;
   final bool isLoading;
   final bool isScanning;
+  final bool isWatching;
+  final bool isImporting;
+  final String? importingFilename;
+  final String? importStatusMessage;
   final String? error;
   final Set<String> selectedPhotos;
   final int totalCount;
@@ -39,6 +50,10 @@ class GalleryState {
     GalleryGrouping? grouping,
     bool? isLoading,
     bool? isScanning,
+    bool? isWatching,
+    bool? isImporting,
+    String? importingFilename,
+    String? importStatusMessage,
     String? error,
     Set<String>? selectedPhotos,
     int? totalCount,
@@ -49,6 +64,10 @@ class GalleryState {
       grouping: grouping ?? this.grouping,
       isLoading: isLoading ?? this.isLoading,
       isScanning: isScanning ?? this.isScanning,
+      isWatching: isWatching ?? this.isWatching,
+      isImporting: isImporting ?? this.isImporting,
+      importingFilename: importingFilename,
+      importStatusMessage: importStatusMessage,
       error: error,
       selectedPhotos: selectedPhotos ?? this.selectedPhotos,
       totalCount: totalCount ?? this.totalCount,
@@ -58,12 +77,20 @@ class GalleryState {
 
 /// Riverpod Notifier for gallery state management.
 class GalleryViewModel extends StateNotifier<GalleryState> {
-  GalleryViewModel({required this.repository})
-      : super(const GalleryState()) {
+  GalleryViewModel({
+    required this.repository,
+    required this.directoryWatcher,
+    required this.importPipeline,
+  }) : super(const GalleryState()) {
     loadPhotos();
   }
 
   final PhotoRepository repository;
+  final DirectoryWatcherService directoryWatcher;
+  final PhotoImportPipeline importPipeline;
+
+  StreamSubscription<WatchedFileEvent>? _watcherSubscription;
+  StreamSubscription<PhotoImportResult>? _importSubscription;
 
   /// Load all active photos grouped by year.
   Future<void> loadPhotos() async {
@@ -142,5 +169,113 @@ class GalleryViewModel extends StateNotifier<GalleryState> {
   }
 
   /// Years sorted descending (most recent first).
-  List<int> get sortedYears => filteredPhotos.keys.toList()..sort((a, b) => b.compareTo(a));
+  List<int> get sortedYears =>
+      filteredPhotos.keys.toList()..sort((a, b) => b.compareTo(a));
+
+  // -----------------------------------------------------------------------
+  // Directory watching
+  // -----------------------------------------------------------------------
+
+  /// Start monitoring default directories (~/Downloads, ~/Pictures) for new
+  /// media files. When a new file is detected, it flows through the import
+  /// pipeline and the gallery auto-refreshes.
+  Future<void> startWatching() async {
+    if (state.isWatching) return;
+
+    debugPrint('[GalleryViewModel] Starting watcher...');
+    // Start the directory watcher.
+    await directoryWatcher.start();
+
+    // Listen for new files from the watcher and feed them to the pipeline.
+    _watcherSubscription = directoryWatcher.fileStream.listen((event) {
+      debugPrint(
+          '[GalleryViewModel] Watcher event received: ${event.path} (${event.eventType})');
+      final filename = event.path.split('/').last;
+      state = state.copyWith(
+        isImporting: true,
+        importingFilename: filename,
+        importStatusMessage: 'Importing $filename...',
+      );
+      importPipeline.importFile(event.path);
+    });
+
+    // Listen for import results and refresh the gallery.
+    _importSubscription = importPipeline.importStream.listen((result) {
+      debugPrint(
+          '[GalleryViewModel] Import result: success=${result.success} '
+          'file=${result.filePath} '
+          'duplicate=${result.skippedDuplicate} '
+          'error=${result.error}');
+      if (result.success) {
+        final filename = result.filePath.split('/').last;
+        state = state.copyWith(
+          isImporting: false,
+          importingFilename: null,
+          importStatusMessage: 'Imported: $filename',
+        );
+        loadPhotos();
+        // Clear the status message after a few seconds.
+        Future.delayed(const Duration(seconds: 4), () {
+          if (state.importStatusMessage == 'Imported: $filename') {
+            state = state.copyWith(importStatusMessage: null);
+          }
+        });
+      } else if (result.skippedDuplicate) {
+        state = state.copyWith(
+          isImporting: false,
+          importingFilename: null,
+          importStatusMessage: 'Already in library (duplicate)',
+        );
+        Future.delayed(const Duration(seconds: 3), () {
+          state = state.copyWith(importStatusMessage: null);
+        });
+      } else {
+        state = state.copyWith(
+          isImporting: false,
+          importingFilename: null,
+          importStatusMessage: 'Import failed: ${result.error ?? "unknown"}',
+        );
+        Future.delayed(const Duration(seconds: 5), () {
+          state = state.copyWith(importStatusMessage: null);
+        });
+      }
+    });
+
+    state = state.copyWith(isWatching: true);
+    debugPrint('[GalleryViewModel] Watching started, state.isWatching=${state.isWatching}');
+  }
+
+  /// Stop monitoring directories. The watcher and subscriptions are cleaned up.
+  Future<void> stopWatching() async {
+    if (!state.isWatching) return;
+
+    await directoryWatcher.stop();
+    _watcherSubscription?.cancel();
+    _watcherSubscription = null;
+    _importSubscription?.cancel();
+    _importSubscription = null;
+
+    state = state.copyWith(isWatching: false);
+  }
+
+  /// Add a directory to the watch list. Takes effect immediately.
+  Future<void> addWatchedDirectory(String path) async {
+    await directoryWatcher.addDirectory(path);
+  }
+
+  /// Remove a directory from the watch list.
+  Future<void> removeWatchedDirectory(String path) async {
+    await directoryWatcher.removeDirectory(path);
+  }
+
+  /// The list of currently watched directories.
+  List<String> get watchedDirectories => directoryWatcher.watchedDirectories;
+
+  @override
+  void dispose() {
+    stopWatching();
+    directoryWatcher.dispose();
+    importPipeline.dispose();
+    super.dispose();
+  }
 }

@@ -8,6 +8,8 @@ import 'data/repositories/photo_repository.dart';
 import 'services/photo_scanner_service.dart';
 import 'services/tflite_service.dart';
 import 'services/sidecar_service.dart';
+import 'services/directory_watcher_service.dart';
+import 'services/photo_import_pipeline.dart';
 import 'ui/screens/gallery/gallery_viewmodel.dart';
 
 // ---------------------------------------------------------------------------
@@ -74,5 +76,27 @@ final photoRepositoryProvider = Provider<PhotoRepository>((ref) {
 
 final galleryViewModelProvider =
     StateNotifierProvider<GalleryViewModel, GalleryState>((ref) {
-  return GalleryViewModel(repository: ref.watch(photoRepositoryProvider));
+  return GalleryViewModel(
+    repository: ref.watch(photoRepositoryProvider),
+    directoryWatcher: ref.watch(directoryWatcherServiceProvider),
+    importPipeline: ref.watch(photoImportPipelineProvider),
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Directory Watcher & Import Pipeline
+// ---------------------------------------------------------------------------
+
+/// Singleton directory watcher service — one instance monitors all directories.
+final directoryWatcherServiceProvider =
+    Provider<DirectoryWatcherService>((ref) {
+  return DirectoryWatcherService();
+});
+
+/// Singleton import pipeline — orchestrates scan + persist + AI categorization.
+final photoImportPipelineProvider = Provider<PhotoImportPipeline>((ref) {
+  return PhotoImportPipeline(
+    scannerService: ref.watch(photoScannerServiceProvider),
+    repository: ref.watch(photoRepositoryProvider),
+  );
 });

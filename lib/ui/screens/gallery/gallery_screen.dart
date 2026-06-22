@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../core/constants.dart';
+import '../../../data/repositories/photo_repository.dart';
 import '../../../providers.dart';
 import '../../../services/photo_scanner_service.dart';
 import '../../widgets/photo_card.dart';
@@ -26,7 +27,19 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
   final _scrollController = ScrollController();
 
   @override
+  void initState() {
+    super.initState();
+    // Start directory watching on the next frame so the widget is mounted.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(galleryViewModelProvider.notifier).startWatching();
+      }
+    });
+  }
+
+  @override
   void dispose() {
+    ref.read(galleryViewModelProvider.notifier).stopWatching();
     _scrollController.dispose();
     super.dispose();
   }
@@ -40,6 +53,16 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
     return Scaffold(
       appBar: _buildAppBar(vm, state, context),
       body: _buildBody(state, vm, isDesktop),
+      // Show import status banner when auto-importing.
+      persistentFooterButtons: state.isImporting || state.importStatusMessage != null
+          ? [
+              _ImportStatusBanner(
+                isImporting: state.isImporting,
+                filename: state.importingFilename,
+                message: state.importStatusMessage,
+              ),
+            ]
+          : null,
       floatingActionButton: state.isSelectionMode
           ? null
           : FloatingActionButton(
@@ -77,8 +100,35 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
     }
 
     return AppBar(
-      title: const Text('Gallery'),
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Gallery'),
+          if (state.isWatching) ...[
+            const SizedBox(width: 8),
+            Tooltip(
+              message: _buildWatchingTooltip(vm),
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: const BoxDecoration(
+                  color: Colors.green,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
       actions: [
+        if (state.isWatching)
+          Tooltip(
+            message: _buildWatchingTooltip(vm),
+            child: const Padding(
+              padding: EdgeInsets.only(right: 4),
+              child: Icon(Icons.visibility, size: 20, color: Colors.green),
+            ),
+          ),
         IconButton(
           icon: const Icon(Icons.search),
           onPressed: () {
@@ -209,6 +259,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
 
     final vm = ref.read(galleryViewModelProvider.notifier);
     final scannerService = ref.read(photoScannerServiceProvider);
+    final repository = ref.read(photoRepositoryProvider);
 
     // Show scanning snackbar BEFORE updating state to avoid
     // triggering overlays during a rebuild (mouse_tracker assertion).
@@ -232,10 +283,12 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
     vm.setScanning(true);
 
     int imported = 0;
+    final hashes = <String>[];
     try {
       await for (final scanResult
           in scannerService.scanDirectory(result)) {
         await scannerService.persistScanResult(scanResult);
+        hashes.add(scanResult.sha256Hash);
         imported++;
       }
     } catch (e) {
@@ -260,6 +313,82 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
         ),
       );
     }
+
+    // Run AI categorization on imported photos in the background.
+    if (imported > 0 && context.mounted) {
+      _categorizeImportedPhotos(context, hashes, repository);
+    }
+  }
+
+  /// Runs AI categorization on the imported photos in the background.
+  /// Shows a snackbar with progress.
+  Future<void> _categorizeImportedPhotos(
+    BuildContext context,
+    List<String> hashes,
+    PhotoRepository repository,
+  ) async {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 12),
+            Text('Categorizing ${hashes.length} photos with AI...'),
+          ],
+        ),
+        duration: const Duration(hours: 1),
+      ),
+    );
+
+    int categorized = 0;
+    for (final hash in hashes) {
+      try {
+        final photo = await repository.findDuplicateByHash(hash);
+        if (photo != null) {
+          await repository
+              .categorizeAndPersist(photo)
+              .timeout(const Duration(seconds: 30));
+          categorized++;
+        }
+      } catch (_) {
+        // Skip failed/timed-out categorization — photo is already imported.
+      }
+    }
+
+    if (mounted) {
+      _showSnackBarAfterFrame(
+        context,
+        SnackBar(
+          duration: const Duration(seconds: 3),
+          content: Text(
+            categorized > 0
+                ? 'AI tags generated for $categorized photos'
+                : 'AI categorization skipped',
+          ),
+        ),
+      );
+      // Refresh to show new tags.
+      if (categorized > 0) {
+        ref.read(galleryViewModelProvider.notifier).loadPhotos();
+      }
+    }
+  }
+
+  /// Builds a tooltip describing which directories are being watched.
+  String _buildWatchingTooltip(GalleryViewModel vm) {
+    final dirs = vm.watchedDirectories;
+    if (dirs.isEmpty) return 'Not watching any directories';
+    final names = dirs.map((d) {
+      final parts = d.split('/');
+      return parts.isNotEmpty ? parts.last : d;
+    }).join(', ');
+    return 'Watching: $names';
   }
 
   /// Shows a snackbar on the next frame to avoid triggering Flutter's
@@ -327,6 +456,62 @@ class _FilterChips extends StatelessWidget {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+}
+
+/// Banner shown at the bottom of the gallery when an auto-import is in
+/// progress or has just completed.
+class _ImportStatusBanner extends StatelessWidget {
+  const _ImportStatusBanner({
+    required this.isImporting,
+    this.filename,
+    this.message,
+  });
+
+  final bool isImporting;
+  final String? filename;
+  final String? message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: isImporting
+          ? Colors.blue.shade50
+          : (message?.contains('failed') == true
+              ? Colors.red.shade50
+              : Colors.green.shade50),
+      child: Row(
+        children: [
+          if (isImporting)
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            Icon(
+              message?.contains('failed') == true
+                  ? Icons.error_outline
+                  : message?.contains('duplicate') == true
+                      ? Icons.info_outline
+                      : Icons.check_circle,
+              size: 18,
+              color: message?.contains('failed') == true
+                  ? Colors.red
+                  : Colors.green,
+            ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message ?? (isImporting ? 'Importing $filename...' : ''),
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+        ],
       ),
     );
   }

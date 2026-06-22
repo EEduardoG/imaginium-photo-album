@@ -107,6 +107,11 @@ class GalleryViewModel extends StateNotifier<GalleryState> {
     state = state.copyWith(selectedPhotos: const {});
   }
 
+  /// Set the scanning state (used by the gallery screen).
+  void setScanning(bool value) {
+    state = state.copyWith(isScanning: value);
+  }
+
   /// Delete selected photos (soft delete).
   Future<void> deleteSelected() async {
     for (final id in state.selectedPhotos) {

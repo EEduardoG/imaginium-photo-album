@@ -5,6 +5,7 @@ import 'data/database/dao/tags_dao.dart';
 import 'data/database/dao/albums_dao.dart';
 import 'data/database/dao/sync_dao.dart';
 import 'data/repositories/photo_repository.dart';
+import 'services/photo_scanner_service.dart';
 import 'services/tflite_service.dart';
 import 'services/sidecar_service.dart';
 import 'ui/screens/gallery/gallery_viewmodel.dart';
@@ -41,6 +42,10 @@ final syncDaoProvider = Provider<SyncDao>((ref) {
 // ---------------------------------------------------------------------------
 // Services
 // ---------------------------------------------------------------------------
+
+final photoScannerServiceProvider = Provider<PhotoScannerService>((ref) {
+  return PhotoScannerService(photosDao: ref.watch(photosDaoProvider));
+});
 
 final tfliteServiceProvider = Provider<TfliteService>((ref) {
   return TfliteService();

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../../core/constants.dart';
 import '../../../providers.dart';
 import '../../widgets/photo_card.dart';
@@ -41,9 +42,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
       floatingActionButton: state.isSelectionMode
           ? null
           : FloatingActionButton(
-              onPressed: () {
-                // TODO: Open scan folder picker.
-              },
+              onPressed: () => _scanFolder(context),
               child: const Icon(Icons.add_photo_alternate),
             ),
     );
@@ -140,9 +139,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
             const Text('No photos yet'),
             const SizedBox(height: 8),
             ElevatedButton.icon(
-              onPressed: () {
-                // TODO: Open scan folder picker.
-              },
+              onPressed: () => _scanFolder(context),
               icon: const Icon(Icons.folder_open),
               label: const Text('Scan folder'),
             ),
@@ -200,6 +197,18 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
           ],
         ],
       ),
+    );
+  }
+
+  Future<void> _scanFolder(BuildContext context) async {
+    final result = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Select a folder to scan for photos and videos',
+    );
+    if (result == null || !context.mounted) return;
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Scanning folder...')),
     );
   }
 

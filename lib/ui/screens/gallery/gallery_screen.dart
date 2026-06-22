@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../core/constants.dart';
 import '../../../providers.dart';
+import '../../../services/photo_scanner_service.dart';
 import '../../widgets/photo_card.dart';
 import 'gallery_viewmodel.dart';
 
@@ -206,10 +207,71 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
     );
     if (result == null || !context.mounted) return;
 
+    final vm = ref.read(galleryViewModelProvider.notifier);
+    final scannerService = ref.read(photoScannerServiceProvider);
+
+    // Show scanning snackbar BEFORE updating state to avoid
+    // triggering overlays during a rebuild (mouse_tracker assertion).
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Scanning folder...')),
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 12),
+            Text('Scanning folder...'),
+          ],
+        ),
+        duration: Duration(hours: 1), // Keep visible during scan.
+      ),
     );
+    vm.setScanning(true);
+
+    int imported = 0;
+    try {
+      await for (final scanResult
+          in scannerService.scanDirectory(result)) {
+        await scannerService.persistScanResult(scanResult);
+        imported++;
+      }
+    } catch (e) {
+      if (context.mounted) {
+        _showSnackBarAfterFrame(
+          context,
+          SnackBar(content: Text('Scan error: $e')),
+        );
+      }
+    } finally {
+      vm.setScanning(false);
+      await vm.loadPhotos();
+      _showSnackBarAfterFrame(
+        context,
+        SnackBar(
+          duration: const Duration(seconds: 3),
+          content: Text(
+            imported > 0
+                ? 'Imported $imported new photos'
+                : 'No new photos found',
+          ),
+        ),
+      );
+    }
+  }
+
+  /// Shows a snackbar on the next frame to avoid triggering Flutter's
+  /// `!_debugDuringDeviceUpdate` assertion when called during a rebuild.
+  void _showSnackBarAfterFrame(BuildContext context, SnackBar snackBar) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(snackBar);
+      }
+    });
   }
 
   void _confirmDelete(GalleryViewModel vm) {
@@ -279,20 +341,23 @@ class _YearHeaderDelegate extends SliverPersistentHeaderDelegate {
   @override
   Widget build(
       BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      color: Theme.of(context).scaffoldBackgroundColor,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          Text(
-            year.toString(),
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          const SizedBox(width: 8),
-          const Expanded(child: Divider()),
-        ],
+    return SizedBox(
+      height: maxExtent,
+      child: Container(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          children: [
+            Text(
+              year.toString(),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(width: 8),
+            const Expanded(child: Divider()),
+          ],
+        ),
       ),
     );
   }

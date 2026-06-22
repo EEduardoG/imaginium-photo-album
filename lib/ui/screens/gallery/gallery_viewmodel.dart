@@ -179,12 +179,40 @@ class GalleryViewModel extends StateNotifier<GalleryState> {
   /// Start monitoring default directories (~/Downloads, ~/Pictures) for new
   /// media files. When a new file is detected, it flows through the import
   /// pipeline and the gallery auto-refreshes.
+  ///
+  /// On startup, first scans all watched directories for existing files
+  /// that were added while the app was closed (startup sync), then starts
+  /// the live watcher for new changes.
   Future<void> startWatching() async {
     if (state.isWatching) return;
 
     debugPrint('[GalleryViewModel] Starting watcher...');
-    // Start the directory watcher.
+
+    // 1. Start the watcher first — this populates the watched directories list
+    //    and begins live monitoring.
     await directoryWatcher.start();
+
+    // 2. Startup sync: scan watched directories for existing files.
+    final dirs = directoryWatcher.watchedDirectories;
+    if (dirs.isNotEmpty) {
+      state = state.copyWith(
+        isImporting: true,
+        importStatusMessage: 'Syncing watched directories...',
+      );
+      debugPrint('[GalleryViewModel] Startup sync: scanning ${dirs.length} directories: $dirs');
+      final imported = await importPipeline.syncWatchedDirectories(dirs);
+      debugPrint('[GalleryViewModel] Startup sync done: $imported new files imported');
+      state = state.copyWith(
+        isImporting: false,
+        importStatusMessage: imported > 0
+            ? 'Synced: $imported new photos found'
+            : 'Sync complete — no new photos',
+      );
+      await loadPhotos();
+      Future.delayed(const Duration(seconds: 4), () {
+        state = state.copyWith(importStatusMessage: null);
+      });
+    }
 
     // Listen for new files from the watcher and feed them to the pipeline.
     _watcherSubscription = directoryWatcher.fileStream.listen((event) {

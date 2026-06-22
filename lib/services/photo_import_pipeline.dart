@@ -85,6 +85,44 @@ class PhotoImportPipeline {
     }
   }
 
+  /// Scan all watched directories for existing media files and import any
+  /// that are not already in the database. Call this on app startup to sync
+  /// files added while the app was closed.
+  ///
+  /// Returns the number of newly imported files.
+  Future<int> syncWatchedDirectories(List<String> directories) async {
+    int totalImported = 0;
+
+    for (final dir in directories) {
+      final dirEntity = Directory(dir);
+      if (!await dirEntity.exists()) continue;
+
+      final files = dirEntity
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) {
+        final ext =
+            p.extension(f.path).toLowerCase().replaceAll('.', '');
+        return [
+          'jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'heic', 'heif',
+          'mp4', 'mov', 'avi', 'mkv', 'webm',
+        ].contains(ext);
+      }).toList();
+
+      debugPrint(
+          '[PhotoImportPipeline] Syncing ${files.length} files from $dir');
+
+      for (final file in files) {
+        final result = await _processFile(file.path, emitResult: false);
+        if (result != null && result.success) {
+          totalImported++;
+        }
+      }
+    }
+
+    return totalImported;
+  }
+
   /// Import a batch of files (e.g., from a manual folder scan) without
   /// emitting per-file results on the stream. Returns the count of
   /// successfully imported files.

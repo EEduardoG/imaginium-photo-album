@@ -42,8 +42,8 @@ class CategorizationTag {
 }
 
 /// Orchestrates the AI categorization pipeline:
-/// 1. Run YOLO-NAS for object detection → tags
-/// 2. Run MobileNetV3 for scene classification → category
+/// 1. Run SSD MobileNet for object detection → tags
+/// 2. Run classifier for scene classification → category
 /// 3. Store results in database + sidecar JSON
 class AiCategorizerService {
   AiCategorizerService({
@@ -73,15 +73,15 @@ class AiCategorizerService {
     final processedBytes = await _ensureDecodable(bytes, filePath);
 
     // Run both models.
-    final yoloDetections = await _tflite.detectObjects(processedBytes);
+    final detections = await _tflite.detectObjects(processedBytes);
     final classification = await _tflite.classifyImage(processedBytes);
 
-    // Build tags from YOLO detections.
-    final tags = yoloDetections
+    // Build tags from object detections.
+    final tags = detections
         .map((d) => CategorizationTag(
               name: d.label,
               confidence: d.confidence,
-              source: TagSource.aiYolo,
+              source: TagSource.aiDetector,
             ))
         .toList();
 

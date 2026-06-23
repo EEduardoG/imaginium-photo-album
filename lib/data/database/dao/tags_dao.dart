@@ -38,7 +38,7 @@ class TagsDao extends DatabaseAccessor<AppDatabase> with _$TagsDaoMixin {
         id: row.read(tags.id)!,
         name: row.read(tags.name)!,
         color: row.read(tags.color),
-        source: TagSource.aiYolo,
+        source: TagSource.aiDetector,
       );
     }).toList();
   }

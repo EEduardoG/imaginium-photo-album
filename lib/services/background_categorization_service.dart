@@ -10,8 +10,7 @@ import '../data/repositories/photo_repository.dart';
 /// How it works:
 /// 1. On [start], it queries the database for active photos that have no
 ///    tags (uncategorized).
-/// 2. Processes them sequentially — YOLO-NAS for tags, MobileNetV3 for
-///    category, writes sidecar `.photo.json`.
+/// 2. Processes them sequentially — SSD MobileNet for tags, writes sidecar.
 /// 3. After finishing the initial batch, it keeps polling every 30 seconds
 ///    for newly imported uncategorized photos.
 /// 4. Runs completely silently — no UI feedback needed.
@@ -30,6 +29,9 @@ class BackgroundCategorizationService {
 
   /// Photo IDs that have already failed categorization — don't retry.
   final Set<String> _failedPhotoIds = {};
+
+  /// Photo IDs that have been successfully processed — don't retry.
+  final Set<String> _processedPhotoIds = {};
 
   bool get isRunning => _isRunning;
   bool get isProcessing => _isProcessing;
@@ -55,15 +57,22 @@ class BackgroundCategorizationService {
     _pollTimer?.cancel();
     _pollTimer = null;
     _failedPhotoIds.clear();
+    _processedPhotoIds.clear();
     debugPrint('[BackgroundCategorization] Stopped');
   }
 
   /// Wake up the service to process any pending photos immediately.
-  /// Called after new photos are imported.
   void wakeUp() {
     if (!_isRunning) return;
-    if (_isProcessing) return; // Already processing, will pick up new ones.
+    if (_isProcessing) return;
     _processLoop();
+  }
+
+  /// Clear processed/failed sets so photos get re-categorized on next cycle.
+  void resetProcessed() {
+    _processedPhotoIds.clear();
+    _failedPhotoIds.clear();
+    debugPrint('[BackgroundCategorization] Reset — all photos will be re-categorized');
   }
 
   // -----------------------------------------------------------------------
@@ -78,20 +87,22 @@ class BackgroundCategorizationService {
     try {
       // Find photos that need categorization (no tags yet).
       final uncategorized = await _findUncategorizedPhotos();
-      debugPrint(
-          '[BackgroundCategorization] Found ${uncategorized.length} uncategorized photos'
-          ' (${_failedPhotoIds.length} previously failed, skipped)');
+      if (uncategorized.isNotEmpty) {
+        debugPrint(
+            '[BackgroundCategorization] Found ${uncategorized.length} uncategorized photos');
+      }
 
       for (final photo in uncategorized) {
         if (!_isRunning) break;
 
-        // Skip photos that already failed — don't retry infinitely.
+        if (_processedPhotoIds.contains(photo.id)) continue;
         if (_failedPhotoIds.contains(photo.id)) continue;
 
         try {
           debugPrint(
               '[BackgroundCategorization] Categorizing: ${photo.filename}');
           await repository.categorizeAndPersist(photo);
+          _processedPhotoIds.add(photo.id);
           debugPrint(
               '[BackgroundCategorization] Done: ${photo.filename}');
         } catch (e) {

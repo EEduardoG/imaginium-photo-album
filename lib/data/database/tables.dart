@@ -4,7 +4,7 @@ import 'package:drift/drift.dart';
 enum MediaType { photo, video }
 
 /// Enum for tag source: which AI or manual.
-enum TagSource { aiYolo, aiMobileNet, aiOllama, manual }
+enum TagSource { aiDetector, aiClassifier, aiOllama, manual }
 
 /// Enum for sync status of a photo in relation to Proton Drive.
 enum SyncStatus { localOnly, pendingUpload, synced, pendingDownload, conflict }

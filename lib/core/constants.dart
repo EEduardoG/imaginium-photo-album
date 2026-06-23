@@ -20,7 +20,8 @@ class AppConstants {
   static const int ssdInputSize = 300;
 
   // Confidence threshold for a detection to become a tag
-  static const double yoloConfidenceThreshold = 0.4;
+  // SSD models typically have lower confidence than other detectors.
+  static const double detectionConfidenceThreshold = 0.2;
 
   // -- Video keyframe extraction --
   static const int keyframeIntervalSeconds = 2;

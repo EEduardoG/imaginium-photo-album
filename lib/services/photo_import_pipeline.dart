@@ -31,7 +31,7 @@ class PhotoImportResult {
 /// 1. Compute SHA-256 hash for deduplication
 /// 2. Skip if duplicate
 /// 3. Create [ScanResult] and persist to database via [PhotoScannerService]
-/// 4. Run AI categorization (YOLO-NAS + MobileNetV3)
+/// 4. AI categorization handled by BackgroundCategorizationService
 /// 5. Write sidecar `.photo.json`
 /// 6. Emit [PhotoImportResult] on [importStream]
 ///

@@ -58,7 +58,7 @@ class SettingsScreen extends ConsumerWidget {
           _sectionHeader(context, 'AI'),
           const ListTile(
             title: Text('TFLite Models'),
-            subtitle: Text('YOLO-NAS + MobileNetV3 · Active'),
+            subtitle: Text('SSD MobileNet v2 · Active'),
             leading: Icon(Icons.check_circle, color: Colors.green),
           ),
           SwitchListTile(

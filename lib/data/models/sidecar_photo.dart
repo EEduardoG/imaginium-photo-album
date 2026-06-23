@@ -89,7 +89,7 @@ class SidecarTag {
   /// AI confidence score (0.0 to 1.0).
   final double confidence;
 
-  /// Source of this tag: ai_yolo, ai_mobilenet, ai_ollama, or manual.
+  /// Source of this tag: ai_detector, ai_classifier, ai_ollama, or manual.
   final String source;
 
   Map<String, dynamic> toJson() => _$SidecarTagToJson(this);

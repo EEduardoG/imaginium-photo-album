@@ -16,18 +16,11 @@ class AppConstants {
   ];
 
   // -- TFLite --
-  static const String yoloModelPath = 'assets/models/yolo_nas_float32.tflite';
-  static const String mobileNetModelPath =
-      'assets/models/mobilenetv3.tflite';
+  static const String ssdModelPath = 'assets/models/ssd_mobilenet_v2.tflite';
+  static const int ssdInputSize = 300;
 
-  static const int yoloInputSize = 640;
-  static const int mobileNetInputSize = 224;
-
-  // YOLO-NAS confidence threshold for a detection to become a tag
+  // Confidence threshold for a detection to become a tag
   static const double yoloConfidenceThreshold = 0.4;
-
-  // MobileNetV3 confidence threshold for category assignment
-  static const double categoryConfidenceThreshold = 0.3;
 
   // -- Video keyframe extraction --
   static const int keyframeIntervalSeconds = 2;

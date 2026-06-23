@@ -92,6 +92,8 @@ service-account.json
 # -- AI Models (large files, downloaded separately) -----------------------------
 assets/models/*.tflite
 !assets/models/.gitkeep
+linux/blobs/*.so
+!linux/blobs/.gitkeep
 
 # -- Database & User Data -------------------------------------------------------
 *.db

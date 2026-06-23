@@ -126,6 +126,15 @@ foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
     COMPONENT Runtime)
 endforeach(bundled_library)
 
+# Copy TensorFlow Lite native library if present.
+# Place libtensorflowlite_c-linux.so in linux/blobs/
+set(TFLITE_BLOB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/blobs")
+if(EXISTS "${TFLITE_BLOB_DIR}/libtensorflowlite_c-linux.so")
+  install(FILES "${TFLITE_BLOB_DIR}/libtensorflowlite_c-linux.so"
+    DESTINATION "${CMAKE_INSTALL_PREFIX}/blobs"
+    COMPONENT Runtime)
+endif()
+
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/linux/")
 install(DIRECTORY "${NATIVE_ASSETS_DIR}"

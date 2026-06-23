@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../core/constants.dart';
-import '../../../data/repositories/photo_repository.dart';
 import '../../../providers.dart';
 import '../../../services/photo_scanner_service.dart';
 import '../../widgets/photo_card.dart';
@@ -259,7 +258,6 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
 
     final vm = ref.read(galleryViewModelProvider.notifier);
     final scannerService = ref.read(photoScannerServiceProvider);
-    final repository = ref.read(photoRepositoryProvider);
 
     // Show scanning snackbar BEFORE updating state to avoid
     // triggering overlays during a rebuild (mouse_tracker assertion).
@@ -283,12 +281,10 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
     vm.setScanning(true);
 
     int imported = 0;
-    final hashes = <String>[];
     try {
       await for (final scanResult
           in scannerService.scanDirectory(result)) {
         await scannerService.persistScanResult(scanResult);
-        hashes.add(scanResult.sha256Hash);
         imported++;
       }
     } catch (e) {
@@ -314,70 +310,8 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
       );
     }
 
-    // Run AI categorization on imported photos in the background.
-    if (imported > 0 && context.mounted) {
-      _categorizeImportedPhotos(context, hashes, repository);
-    }
-  }
-
-  /// Runs AI categorization on the imported photos in the background.
-  /// Shows a snackbar with progress.
-  Future<void> _categorizeImportedPhotos(
-    BuildContext context,
-    List<String> hashes,
-    PhotoRepository repository,
-  ) async {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const SizedBox(width: 12),
-            Text('Categorizing ${hashes.length} photos with AI...'),
-          ],
-        ),
-        duration: const Duration(hours: 1),
-      ),
-    );
-
-    int categorized = 0;
-    for (final hash in hashes) {
-      try {
-        final photo = await repository.findDuplicateByHash(hash);
-        if (photo != null) {
-          await repository
-              .categorizeAndPersist(photo)
-              .timeout(const Duration(seconds: 30));
-          categorized++;
-        }
-      } catch (_) {
-        // Skip failed/timed-out categorization — photo is already imported.
-      }
-    }
-
-    if (mounted) {
-      _showSnackBarAfterFrame(
-        context,
-        SnackBar(
-          duration: const Duration(seconds: 3),
-          content: Text(
-            categorized > 0
-                ? 'AI tags generated for $categorized photos'
-                : 'AI categorization skipped',
-          ),
-        ),
-      );
-      // Refresh to show new tags.
-      if (categorized > 0) {
-        ref.read(galleryViewModelProvider.notifier).loadPhotos();
-      }
-    }
+    // AI categorization is now handled by BackgroundCategorizationService.
+    // The photos will be tagged automatically in the background.
   }
 
   /// Builds a tooltip describing which directories are being watched.

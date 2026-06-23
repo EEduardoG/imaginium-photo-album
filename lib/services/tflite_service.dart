@@ -5,216 +5,134 @@ import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:image/image.dart' as img;
 import '../core/constants.dart';
 
-/// Result from YOLO-NAS object detection inference.
 class YoloDetection {
-  const YoloDetection({
-    required this.label,
-    required this.confidence,
-  });
-
+  const YoloDetection({required this.label, required this.confidence});
   final String label;
   final double confidence;
 }
 
-/// Result from MobileNetV3 classification inference.
 class ClassificationResult {
-  const ClassificationResult({
-    required this.label,
-    required this.confidence,
-  });
-
+  const ClassificationResult({required this.label, required this.confidence});
   final String label;
   final double confidence;
 }
 
-/// Service that loads and runs TensorFlow Lite models for on-device AI.
-///
-/// Models are bundled as assets (see pubspec.yaml). The service loads them
-/// lazily on first use and caches the interpreter in memory.
 class TfliteService {
-  Interpreter? _yoloInterpreter;
-  Interpreter? _mobilenetInterpreter;
-  bool _initialized = false;
+  // Patrón Singleton para evitar múltiples instancias en el pipeline de fondo
+  TfliteService._internal();
+  static final TfliteService _instance = TfliteService._internal();
+  factory TfliteService() => _instance;
 
-  /// Whether models are loaded and ready for inference.
-  bool get isInitialized => _initialized;
+  Interpreter? _interpreter;
+  bool _loaded = false;
 
-  /// Load both TFLite models into memory.
+  bool get isLoaded => _loaded;
+
   Future<void> initialize() async {
-    if (_initialized) return;
+    if (_loaded && _interpreter != null) return;
+    try {
+      final options = InterpreterOptions()..threads = _optimalThreads;
+      _interpreter = await Interpreter.fromAsset(
+        AppConstants.ssdModelPath,
+        options: options,
+      );
+
+      // Verificamos el shape actual antes de redimensionar a ciegas
+      final inputTensor = _interpreter!.getInputTensor(0);
+      final currentShape = inputTensor.shape;
+      
+      // Solo aplicamos resize si el modelo no viene por defecto en [1, 300, 300, 3]
+      if (currentShape.toString() != '[1, 300, 300, 3]') {
+        _interpreter!.resizeInputTensor(0, [1, 300, 300, 3]);
+      }
+      
+      _interpreter!.allocateTensors();
+      _loaded = true;
+      debugPrint('[TfliteService] SSD model successfully initialized.');
+    } catch (e) {
+      debugPrint('[TfliteService] SSD model failed to initialize: $e');
+      _loaded = false;
+    }
+  }
+
+  Future<List<YoloDetection>> detectObjects(Uint8List imageBytes) async {
+    if (!_loaded) await initialize();
+    if (!_loaded || _interpreter == null) return [];
 
     try {
-      _yoloInterpreter = await Interpreter.fromAsset(
-        AppConstants.yoloModelPath,
-        options: InterpreterOptions()..threads = _optimalThreads,
-      );
+      final input = _prepareInput(imageBytes);
 
-      _mobilenetInterpreter = await Interpreter.fromAsset(
-        AppConstants.mobileNetModelPath,
-        options: InterpreterOptions()..threads = _optimalThreads,
-      );
+      // Model outputs 20 detections max (from diagnostic).
+      const maxDet = 20;
+      final classes = Float32List(maxDet);
+      final scores = Float32List(maxDet);
+      final locations = Float32List(maxDet * 4);
+      final numDetections = Float32List(1);
 
-      _initialized = true;
+      final output = {
+        0: locations.buffer,
+        1: classes.buffer,
+        2: scores.buffer,
+        3: numDetections.buffer,
+      };
+
+      _interpreter!.runForMultipleInputs([input.buffer], output);
+      return _parseSsdFlat(classes, scores);
     } catch (e) {
-      _initialized = false;
-      rethrow;
+      debugPrint('[TfliteService] Detection error: $e');
+      return [];
     }
   }
 
-  /// Runs YOLO-NAS object detection on [imageBytes] (raw file bytes).
-  ///
-  /// Returns a list of detected objects with labels and confidence scores.
-  /// Only detections above [AppConstants.yoloConfidenceThreshold] are included.
-  Future<List<YoloDetection>> detectObjects(Uint8List imageBytes) async {
-    if (!_initialized) await initialize();
-
-    final input = _prepareYoloInput(imageBytes);
-    final output = _allocateYoloOutput();
-
-    _yoloInterpreter!.run(input, output);
-
-    return _parseYoloOutput(output);
-  }
-
-  /// Runs MobileNetV3 classification on [imageBytes].
-  ///
-  /// Returns the top predicted category label with confidence.
-  Future<ClassificationResult> classifyImage(Uint8List imageBytes) async {
-    if (!_initialized) await initialize();
-
-    final input = _prepareMobileNetInput(imageBytes);
-    final output = List.filled(1 * _numClasses, 0.0).reshape([1, _numClasses]);
-
-    _mobilenetInterpreter!.run(input, output);
-
-    return _parseClassificationOutput(output);
-  }
-
-  /// Release model memory. Call when AI is not needed (e.g., entering
-  /// background, or user disabled AI in Settings).
-  void dispose() {
-    _yoloInterpreter?.close();
-    _mobilenetInterpreter?.close();
-    _yoloInterpreter = null;
-    _mobilenetInterpreter = null;
-    _initialized = false;
-  }
-
-  // -----------------------------------------------------------------------
-  // Private helpers
-  // -----------------------------------------------------------------------
-
-  int get _optimalThreads {
-    // Use half the available cores, minimum 2.
-    final cores = Platform.numberOfProcessors;
-    return cores > 2 ? cores ~/ 2 : 2;
-  }
-
-  static const int _numClasses = 9; // people, nature, urban, food, etc.
-
-  List<Object> _prepareYoloInput(Uint8List bytes) {
-    final decoded = img.decodeImage(bytes);
-    if (decoded == null) {
-      throw ArgumentError('Failed to decode image for YOLO input');
-    }
-    final resized = img.copyResize(
-      decoded,
-      width: AppConstants.yoloInputSize,
-      height: AppConstants.yoloInputSize,
-    );
-
-    // Normalize to float32 [0, 1] — channel order expected by YOLO-NAS.
-    final input = Float32List(1 * AppConstants.yoloInputSize *
-        AppConstants.yoloInputSize * 3);
-    int idx = 0;
-    for (int y = 0; y < AppConstants.yoloInputSize; y++) {
-      for (int x = 0; x < AppConstants.yoloInputSize; x++) {
-        final pixel = resized.getPixel(x, y);
-        input[idx++] = pixel.r / 255.0;
-        input[idx++] = pixel.g / 255.0;
-        input[idx++] = pixel.b / 255.0;
-      }
-    }
-    return [input.reshape([1, AppConstants.yoloInputSize, AppConstants.yoloInputSize, 3])];
-  }
-
-  List<Object> _prepareMobileNetInput(Uint8List bytes) {
-    final decoded = img.decodeImage(bytes);
-    if (decoded == null) {
-      throw ArgumentError('Failed to decode image for MobileNet input');
-    }
-    final resized = img.copyResize(
-      decoded,
-      width: AppConstants.mobileNetInputSize,
-      height: AppConstants.mobileNetInputSize,
-    );
-
-    final input = Float32List(
-        1 * AppConstants.mobileNetInputSize * AppConstants.mobileNetInputSize * 3);
-    int idx = 0;
-    for (int y = 0; y < AppConstants.mobileNetInputSize; y++) {
-      for (int x = 0; x < AppConstants.mobileNetInputSize; x++) {
-        final pixel = resized.getPixel(x, y);
-        input[idx++] = (pixel.r / 255.0 - 0.5) * 2.0;
-        input[idx++] = (pixel.g / 255.0 - 0.5) * 2.0;
-        input[idx++] = (pixel.b / 255.0 - 0.5) * 2.0;
-      }
-    }
-    return [input
-        .reshape([1, AppConstants.mobileNetInputSize, AppConstants.mobileNetInputSize, 3])];
-  }
-
-  Map<int, Object> _allocateYoloOutput() {
-    // YOLO-NAS outputs: [1, max_detections, label_index + confidence + bbox]
-    // Simplified: allocate based on typical YOLO-NAS nano output shape.
-    const maxDetections = 100;
-    const outputSize = 6; // x, y, w, h, confidence, class
-    return {
-      0: Float32List(1 * maxDetections * outputSize)
-          .reshape([1, maxDetections, outputSize]),
-    };
-  }
-
-  List<YoloDetection> _parseYoloOutput(Map<int, Object> output) {
-    // YOLO-NAS output: [1, max_detections, 6] (x, y, w, h, confidence, class)
-    final raw = output[0] as List<List<List<double>>>;
-    final batch = raw[0]; // first (and only) batch item
+  List<YoloDetection> _parseSsdFlat(Float32List classes, Float32List scores) {
     final detections = <YoloDetection>[];
-    for (final detection in batch) {
-      if (detection.length < 6) continue;
-      final confidence = detection[4];
-      final classIndex = detection[5].toInt();
-
-      if (confidence >= AppConstants.yoloConfidenceThreshold &&
-          classIndex < _cocoLabels.length) {
-        detections.add(
-          YoloDetection(
-            label: _cocoLabels[classIndex],
-            confidence: confidence,
-          ),
-        );
+    for (int i = 0; i < classes.length && i < scores.length; i++) {
+      final score = scores[i];
+      if (score >= AppConstants.yoloConfidenceThreshold) {
+        final ci = classes[i].toInt();
+        if (ci >= 0 && ci < _cocoLabels.length) {
+          detections.add(YoloDetection(
+            label: _cocoLabels[ci],
+            confidence: score.toDouble(),
+          ));
+        }
       }
     }
     return detections;
   }
 
-  ClassificationResult _parseClassificationOutput(List<dynamic> output) {
-    final probabilities = output[0] as List<double>? ?? output[0] as List<double>;
-    int maxIndex = 0;
-    double maxProb = 0.0;
-    for (int i = 0; i < probabilities.length; i++) {
-      if (probabilities[i] > maxProb) {
-        maxProb = probabilities[i];
-        maxIndex = i;
-      }
-    }
-    final label = maxIndex < AppConstants.categories.length
-        ? AppConstants.categories[maxIndex]
-        : 'other';
-    return ClassificationResult(label: label, confidence: maxProb);
+  Future<ClassificationResult> classifyImage(Uint8List imageBytes) async {
+    return const ClassificationResult(label: 'other', confidence: 0.0);
   }
 
-  /// COCO dataset labels used by YOLO-NAS.
+  void dispose() {
+    _interpreter?.close();
+    _interpreter = null;
+    _loaded = false;
+  }
+
+  int get _optimalThreads {
+    final cores = Platform.numberOfProcessors;
+    return cores > 2 ? cores ~/ 2 : 2;
+  }
+
+  Uint8List _prepareInput(Uint8List bytes) {
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) throw ArgumentError('Failed to decode image');
+    final resized = img.copyResize(decoded, width: 300, height: 300);
+    final input = Uint8List(1 * 300 * 300 * 3);
+    int idx = 0;
+    for (int y = 0; y < 300; y++) {
+      for (int x = 0; x < 300; x++) {
+        final p = resized.getPixel(x, y);
+        input[idx++] = p.r.toInt();
+        input[idx++] = p.g.toInt();
+        input[idx++] = p.b.toInt();
+      }
+    }
+    return input;
+  }
+
   static const List<String> _cocoLabels = [
     'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train',
     'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign',

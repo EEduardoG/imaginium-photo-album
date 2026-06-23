@@ -1,0 +1,4 @@
+Place libtensorflowlite_c-linux.so here for AI categorization.
+Download from: https://github.com/am15h/tflite_flutter_plugin/releases
+Or install: sudo apt install libtensorflow-lite-dev
+Then copy: cp /usr/lib/x86_64-linux-gnu/libtensorflowlite_c.so linux/blobs/libtensorflowlite_c-linux.so

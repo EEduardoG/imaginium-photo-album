@@ -5,6 +5,7 @@ import '../../../data/database/database.dart';
 import '../../../data/repositories/photo_repository.dart';
 import '../../../services/directory_watcher_service.dart';
 import '../../../services/photo_import_pipeline.dart';
+import '../../../services/background_categorization_service.dart';
 
 /// Filter mode for the gallery grid.
 enum GalleryFilter { all, photos, videos }
@@ -81,6 +82,7 @@ class GalleryViewModel extends StateNotifier<GalleryState> {
     required this.repository,
     required this.directoryWatcher,
     required this.importPipeline,
+    required this.backgroundCategorization,
   }) : super(const GalleryState()) {
     loadPhotos();
   }
@@ -88,6 +90,7 @@ class GalleryViewModel extends StateNotifier<GalleryState> {
   final PhotoRepository repository;
   final DirectoryWatcherService directoryWatcher;
   final PhotoImportPipeline importPipeline;
+  final BackgroundCategorizationService backgroundCategorization;
 
   StreamSubscription<WatchedFileEvent>? _watcherSubscription;
   StreamSubscription<PhotoImportResult>? _importSubscription;
@@ -214,6 +217,9 @@ class GalleryViewModel extends StateNotifier<GalleryState> {
       });
     }
 
+    // 3. Start background AI categorization for uncategorized photos.
+    backgroundCategorization.start();
+
     // Listen for new files from the watcher and feed them to the pipeline.
     _watcherSubscription = directoryWatcher.fileStream.listen((event) {
       debugPrint(
@@ -242,6 +248,8 @@ class GalleryViewModel extends StateNotifier<GalleryState> {
           importStatusMessage: 'Imported: $filename',
         );
         loadPhotos();
+        // Wake up the background categorizer to process the new photo.
+        backgroundCategorization.wakeUp();
         // Clear the status message after a few seconds.
         Future.delayed(const Duration(seconds: 4), () {
           if (state.importStatusMessage == 'Imported: $filename') {
@@ -302,6 +310,7 @@ class GalleryViewModel extends StateNotifier<GalleryState> {
   @override
   void dispose() {
     stopWatching();
+    backgroundCategorization.stop();
     directoryWatcher.dispose();
     importPipeline.dispose();
     super.dispose();

@@ -10,6 +10,7 @@ import 'services/tflite_service.dart';
 import 'services/sidecar_service.dart';
 import 'services/directory_watcher_service.dart';
 import 'services/photo_import_pipeline.dart';
+import 'services/background_categorization_service.dart';
 import 'ui/screens/gallery/gallery_viewmodel.dart';
 
 // ---------------------------------------------------------------------------
@@ -80,6 +81,8 @@ final galleryViewModelProvider =
     repository: ref.watch(photoRepositoryProvider),
     directoryWatcher: ref.watch(directoryWatcherServiceProvider),
     importPipeline: ref.watch(photoImportPipelineProvider),
+    backgroundCategorization:
+        ref.watch(backgroundCategorizationProvider),
   );
 });
 
@@ -93,7 +96,18 @@ final directoryWatcherServiceProvider =
   return DirectoryWatcherService();
 });
 
-/// Singleton import pipeline — orchestrates scan + persist + AI categorization.
+/// Singleton background categorization — processes photos without tags
+/// in the background, one at a time.
+final backgroundCategorizationProvider =
+    Provider<BackgroundCategorizationService>((ref) {
+  return BackgroundCategorizationService(
+    repository: ref.watch(photoRepositoryProvider),
+    photosDao: ref.watch(photosDaoProvider),
+  );
+});
+
+/// Singleton import pipeline — orchestrates scan + persist.
+/// AI categorization is handled by [backgroundCategorizationProvider].
 final photoImportPipelineProvider = Provider<PhotoImportPipeline>((ref) {
   return PhotoImportPipeline(
     scannerService: ref.watch(photoScannerServiceProvider),

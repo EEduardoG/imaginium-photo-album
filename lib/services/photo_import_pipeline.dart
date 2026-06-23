@@ -221,18 +221,8 @@ class PhotoImportPipeline {
         return result;
       }
 
-      // 7. Run AI categorization with a timeout — never block the import.
-      debugPrint('[PhotoImportPipeline] Running AI categorization for: ${photo.filename}');
-      try {
-        await repository
-            .categorizeAndPersist(photo)
-            .timeout(const Duration(seconds: 30));
-        debugPrint('[PhotoImportPipeline] AI categorization completed');
-      } catch (e) {
-        debugPrint(
-            '[PhotoImportPipeline] AI categorization failed/timed out for '
-            '${photo.filename}: $e');
-      }
+      // 7. AI categorization is now handled by BackgroundCategorizationService.
+      //    The photo is imported immediately; tags will be generated in background.
 
       final result = PhotoImportResult(
         filePath: filePath,
